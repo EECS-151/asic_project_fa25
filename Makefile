@@ -419,3 +419,7 @@ $(SRAM_CONF) srams:
 .PHONY: clean
 clean:
 	rm -rf $(HAMMER_D_MK) $(OBJ_DIR)/*rundir $(OBJ_DIR)/*.json hammer-vlsi*.log __pycache__ output.json *_output
+
+submission: par
+	mkdir -p ./submission
+	python3 ./scripts/fom.py

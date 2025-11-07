@@ -2,6 +2,9 @@ import subprocess
 import re
 import gzip
 import argparse
+import zipfile
+import json
+import os
 
 # This script computes the Figure of Merit (FOM) for a given ASIC design.
 # use 'python scripts/fom.py' from the repo directory to run the script
@@ -9,7 +12,7 @@ import argparse
 def compute_fom(f_max, cycles, area):
     return 1e10 * (f_max / (cycles * area**0.5))
 
-def get_fmax(gz_path="build/par-rundir/timingReports/riscv_top_postCTS_all.tarpt.gz"):
+def get_fmax(gz_path="build/par-rundir/timingReports/riscv_top_postRoute_all.tarpt.gz"):
     try:
         # run make par
         # print("Running make par...")
@@ -110,11 +113,35 @@ def get_cycles(test_bmark="sum.out"):
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"Simulation failed:\n{e.stdout}\n{e.stderr}")
 
-    
+def dump_to_submission(fom, f_max, cycles, area, submission_path):
+    res = {
+            "score": 1.0,
+            "output": f"Success! FOM: {fom}",
+            "leaderboard": [
+                {"name": "Frequency (MHz)", "value": f_max},
+                {"name": "Area", "value": area, "order": "asc"},
+                {"name": "Cycles", "value": cycles, "order": "asc"},
+                {"name": "FOM", "value": fom},
+            ]
+        }
+
+    # make temporary directory and write results.json
+    os.makedirs(submission_path, exist_ok=True)
+
+    json_path = os.path.join(submission_path, "results.json")
+    zip_path = os.path.join(submission_path, "results.zip")
+
+    with open(json_path, "w") as w:
+        json.dump(res, w)
+
+    # zip the file
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        z.write(json_path, arcname="results.json")
 
 def main():
     parser = argparse.ArgumentParser(description="Compute Figure of Merit (FOM) for ASIC design.")
     parser.add_argument("--cycles", type=int, help="Number of cycles of sum simulation.", default=None)
+    parser.add_argument('--submission_path', type=str, help='Path to output submission zip file.', default=".submission")
 
     args = parser.parse_args()
 
@@ -147,6 +174,8 @@ def main():
 
     fom = compute_fom(f_max, cycles, area)
     print(f"Figure of Merit (FOM); {fom}")
+
+    dump_to_submission(fom, f_max, cycles, area, args.submission_path)
 
 if __name__ == "__main__":
     main()
